@@ -1,16 +1,29 @@
 #!./bin/python3.4
 from __future__ import print_function
-import httplib2
+
 import os
+import httplib2
 
+from apiclient import errors
 from apiclient import discovery
-import oauth2client
-from oauth2client import client
-from oauth2client import tools
 
+import oauth2client
+from oauth2client import tools
+from oauth2client import client
+
+from collections import deque
 
 class EmailMonitor:
+
+    #As long as the shut down signal isn't sent then run program
+    run = True
+
+    #GMail service
     service = None
+    last_email_id = None
+
+    #Handle the email commands as they come.
+    queue = deque([])
 
     def get_credentials(self):
         """
@@ -27,23 +40,34 @@ class EmailMonitor:
         return credentials
 
     def get_service(self):
+        """
+        Sets up the service for future usage.
+        """
         credentials = self.get_credentials()
         http = credentials.authorize(httplib2.Http())
         self.service = discovery.build('gmail', 'v1', http=http)
 
+    def check_mail(self):
+        response = self.service.users().messages().list(userId='me',
+                                                        q='').execute()
+        print(response)
+
     def run(self):
         self.get_credentials()
         self.get_service()
+
+        #Check if the service was correctly set up
         if not self.service:
             print("Unable to correctly start service")
             os.exit(1)
+        self.check_mail()
+
+
 
 
 def main():
-    """Shows basic usage of the Gmail API.
-
-    Creates a Gmail API service object and outputs a list of label names
-    of the user's Gmail account.
+    """
+    Script to monitor the status of an email account.
     """
     monitor = EmailMonitor()
     monitor.run()

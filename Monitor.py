@@ -1,4 +1,4 @@
-#!/usr/bin/python3.4
+#!./bin/python3.4
 
 import httplib2
 import os

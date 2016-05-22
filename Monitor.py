@@ -8,6 +8,8 @@ import base64
 import httplib2
 import mimetypes
 
+from .MySocket import MySocket
+
 from apiclient import errors
 from apiclient import discovery
 
@@ -36,6 +38,9 @@ class EmailMonitor:
     #Handle the email commands as they come.
     queue = deque([])
 
+    #Class to send messages to our socket
+    socket_class = MySocket()
+
     def get_credentials(self):
         """
         Gets credentials so that one may access a particular google account
@@ -48,6 +53,7 @@ class EmailMonitor:
         credentials = store.get()
         if not credentials or credentials.invalid:
             print("Invalid credentials provided")
+            socket_class.shutdown()
             sys.exit(1)
         return credentials
 
@@ -124,6 +130,7 @@ class EmailMonitor:
                 if error_count == 40:
                     print("Terminating program due to excessive errors")
                     self.send_text_message("Terminating Program due to excessive errors")
+                    socket_class.shutdown()
                     sys.exit(1)
 
 
@@ -171,6 +178,7 @@ class EmailMonitor:
         #Check if the service was correctly set up
         if not self.service:
             print("Unable to correctly start service")
+            socket_class.shutdown()
             sys.exit(1)
         self.check_mail()
 

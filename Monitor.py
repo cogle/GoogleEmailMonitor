@@ -2,6 +2,7 @@
 from __future__ import print_function
 
 import os
+import time
 import httplib2
 
 from apiclient import errors
@@ -20,7 +21,7 @@ class EmailMonitor:
 
     #GMail service
     service = None
-    last_email_id = None
+    last_email_id = -1
 
     #Handle the email commands as they come.
     queue = deque([])
@@ -29,7 +30,7 @@ class EmailMonitor:
         """
         Gets credentials so that one may access a particular google account
         """
-        credential_dir =   os.environ['GOOGLE_CREDENTIALS_DIR']
+        credential_dir = os.environ['GOOGLE_CREDENTIALS_DIR']
         credential_path = os.path.join(credential_dir,
                                        os.environ['GOOGLE_CREDENTIALS_FILE'])
         store = oauth2client.file.Storage(credential_path)
@@ -48,9 +49,79 @@ class EmailMonitor:
         self.service = discovery.build('gmail', 'v1', http=http)
 
     def check_mail(self):
-        response = self.service.users().messages().list(userId='me',
-                                                        q='').execute()
-        print(response)
+
+        """
+        The count serves to help us narrow down the time range, by counting
+        iteration we can determine how much time has passed and therefore
+        update our query accordingly
+        """
+        cur_count = 0
+
+
+        error_count = 0
+
+        """
+        Search for messages from a given phone number
+        """
+        from_query = "from:" + str(os.environ['MY_PHONE_NUMBER'])
+
+
+        """
+        Set our final query as concatination of previous queries
+        """
+        query = from_query
+
+        while self.run:
+            try:
+                response = self.service.users().messages().list(
+                                                            userId='me',
+                                                            q=query).execute()
+                messages = []
+
+                if 'messages' in response:
+                    messages.extend(response['messages'])
+                    """
+                    First message will be different
+                    """
+                    if messages[0]['id'] != self.last_email_id:
+                        for message in messages:
+                            if message['id'] == self.last_email_id:
+                                break
+                            else:
+                                message_text = (self.service.users()
+                                                .messages()
+                                                .get(userId='me',
+                                                     id=message['id'],
+                                                     format='raw').execute())
+
+                                self.queue.append(message_text['snippet'])
+
+                        self.last_email_id = messages[0]['id']
+                        self.handle_queue()
+
+
+
+
+            except errors.HttpError:
+                print('An error occurred: %s' % error)
+                error_count = error_count + 1
+                if error_count == 40:
+                    print("Terminating program due to excessive errors")
+                    exit(1)
+
+
+            cur_count = cur_count + 1
+            time.sleep(2)
+
+    def handle_queue(self):
+        while self.queue:
+            command = str(self.queue.popleft()).lower().strip()
+            if command == "end":
+                self.run = False
+                return
+
+    def send_text_message(self, message):
+        print(message)
 
     def run(self):
         self.get_credentials()
@@ -69,9 +140,11 @@ def main():
     """
     Script to monitor the status of an email account.
     """
-    monitor = EmailMonitor()
-    monitor.run()
-
+    try:
+        monitor = EmailMonitor()
+        monitor.run()
+    except KeyboardInterrupt:
+        print("User terminated program")
 
 if __name__ == '__main__':
     main()

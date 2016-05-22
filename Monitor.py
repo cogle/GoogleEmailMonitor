@@ -3,7 +3,9 @@ from __future__ import print_function
 
 import os
 import time
+import base64
 import httplib2
+import mimetypes
 
 from apiclient import errors
 from apiclient import discovery
@@ -13,6 +15,13 @@ from oauth2client import tools
 from oauth2client import client
 
 from collections import deque
+
+
+from email.mime.base import MIMEBase
+from email.mime.text import MIMEText
+from email.mime.audio import MIMEAudio
+from email.mime.image import MIMEImage
+from email.mime.multipart import MIMEMultipart
 
 class EmailMonitor:
 
@@ -102,7 +111,7 @@ class EmailMonitor:
 
 
 
-            except errors.HttpError:
+            except errors.HttpError as error:
                 print('An error occurred: %s' % error)
                 error_count = error_count + 1
                 if error_count == 40:
@@ -118,10 +127,25 @@ class EmailMonitor:
             command = str(self.queue.popleft()).lower().strip()
             if command == "end":
                 self.run = False
+                self.send_text_message('Shutting Down')
                 return
+            else:
+                print(command)
 
-    def send_text_message(self, message):
-        print(message)
+    def send_text_message(self, message_text):
+        message = MIMEText(message_text)
+        message['to'] = os.environ['SEND_TO_EMAIL']
+        message['from'] = os.environ['GMAIL_PI_EMAIL']
+        raw = base64.urlsafe_b64encode(message.as_bytes())
+        raw = raw.decode()
+        body = {'raw': raw}
+        try:
+            message = (self.service.users()
+                       .messages().send(userId='me', body=body)
+                       .execute())
+
+        except errors.HttpError as error:
+            print('An error occurred: %s' % error)
 
     def run(self):
         self.get_credentials()
@@ -140,11 +164,16 @@ def main():
     """
     Script to monitor the status of an email account.
     """
+    monitor = EmailMonitor()
     try:
-        monitor = EmailMonitor()
         monitor.run()
+        monitor.send_final_shutdown_text()
     except KeyboardInterrupt:
         print("User terminated program")
+    except:
+        print("Unknown error")
+        monitor.send_unknown_error_alert()
+        raise
 
 if __name__ == '__main__':
     main()

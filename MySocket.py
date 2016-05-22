@@ -1,8 +1,8 @@
 import socket
 
 
-HOST = '127.0.0.1';
-PORT =  '1337';
+HOST = '127.0.0.1'
+PORT = 1337
 
 class MySocket:
 
@@ -13,7 +13,7 @@ class MySocket:
         self.sock.connect((HOST,PORT))
 
     def send_message(self, message):
-        s.sendall(message.encode())
+        self.sock.sendall(message.encode())
 
     def shutdown(self):
-        sock.close()
+        self.sock.close()

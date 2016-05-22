@@ -8,7 +8,7 @@ import base64
 import httplib2
 import mimetypes
 
-from .MySocket import MySocket
+from MySocket import MySocket
 
 from apiclient import errors
 from apiclient import discovery
@@ -144,13 +144,14 @@ class EmailMonitor:
             message_id = info_dic['msg_id']
             command = str(info_dic['msg_txt']).lower().strip()
 
-            if command == "end":
+            if command == "complete shutdown":
                 self.run = False
                 self.mark_as_read(message_id)
+                self.socket_class.send_message("end")
                 self.send_text_message('Shutting Down after marking messages')
             #So here we would actually handle the commands
             elif self.run:
-                print(command)
+                self.socket_class.send_message(command)
                 self.mark_as_read(message_id)
             #This exists in order to mark messages as read/
             else:

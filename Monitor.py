@@ -2,6 +2,7 @@
 from __future__ import print_function
 
 import os
+import sys
 import time
 import base64
 import httplib2
@@ -47,7 +48,7 @@ class EmailMonitor:
         credentials = store.get()
         if not credentials or credentials.invalid:
             print("Invalid credentials provided")
-            os._exit(1)
+            sys.exit(1)
         return credentials
 
     def get_service(self):
@@ -123,7 +124,7 @@ class EmailMonitor:
                 if error_count == 40:
                     print("Terminating program due to excessive errors")
                     self.send_text_message("Terminating Program due to excessive errors")
-                    os._exit(1)
+                    sys.exit(1)
 
 
             cur_count = cur_count + 1
@@ -166,7 +167,7 @@ class EmailMonitor:
         #Check if the service was correctly set up
         if not self.service:
             print("Unable to correctly start service")
-            os._exit(1)
+            sys.exit(1)
         self.check_mail()
 
     def send_unknown_error_alert(self):

@@ -140,10 +140,14 @@ class EmailMonitor:
             if command == "end":
                 self.run = False
                 self.mark_as_read(message_id)
-                self.send_text_message('Shutting Down')
-                return
-            else:
+                self.send_text_message('Shutting Down after marking messages')
+            #So here we would actually handle the commands
+            elif self.run:
                 print(command)
+                self.mark_as_read(message_id)
+            #This exists in order to mark messages as read/
+            else:
+                print("Marking message: " + command)
                 self.mark_as_read(message_id)
 
     def send_text_message(self, message_text):

@@ -38,6 +38,7 @@ class EmailMonitor:
     def get_credentials(self):
         """
         Gets credentials so that one may access a particular google account
+        It is super important that you have full access to aforementioned account.
         """
         credential_dir = os.environ['GOOGLE_CREDENTIALS_DIR']
         credential_path = os.path.join(credential_dir,
@@ -46,7 +47,7 @@ class EmailMonitor:
         credentials = store.get()
         if not credentials or credentials.invalid:
             print("Invalid credentials provided")
-            os.exit(1)
+            os._exit(1)
         return credentials
 
     def get_service(self):
@@ -72,26 +73,30 @@ class EmailMonitor:
         """
         Search for messages from a given phone number
         """
-        from_query = "from:" + str(os.environ['MY_PHONE_NUMBER'])
-
+        from_query = "from:" + str(os.environ['PHONE_NUMBER_EMAIL'])
 
         """
         Set our final query as concatination of previous queries
         """
-        query = from_query
+        query = str(from_query + " "
+                    + "in:inbox" +" "
+                    + "is:unread")
 
         while self.run:
             try:
-                response = self.service.users().messages().list(
-                                                            userId='me',
-                                                            q=query).execute()
-                messages = []
+                response = (self.service
+                            .users()
+                            .messages()
+                            .list(userId='me',
+                                  q=query).execute())
 
+                messages = []
                 if 'messages' in response:
                     messages.extend(response['messages'])
                     """
                     First message will be different
                     """
+
                     if messages[0]['id'] != self.last_email_id:
                         for message in messages:
                             if message['id'] == self.last_email_id:
@@ -102,8 +107,9 @@ class EmailMonitor:
                                                 .get(userId='me',
                                                      id=message['id'],
                                                      format='raw').execute())
-
-                                self.queue.append(message_text['snippet'])
+                                message_info = {'msg_id' : message['id'],
+                                                'msg_txt' : message_text['snippet']}
+                                self.queue.append(message_info)
 
                         self.last_email_id = messages[0]['id']
                         self.handle_queue()
@@ -116,7 +122,8 @@ class EmailMonitor:
                 error_count = error_count + 1
                 if error_count == 40:
                     print("Terminating program due to excessive errors")
-                    exit(1)
+                    self.send_text_message("Terminating Program due to excessive errors")
+                    os._exit(1)
 
 
             cur_count = cur_count + 1
@@ -124,17 +131,23 @@ class EmailMonitor:
 
     def handle_queue(self):
         while self.queue:
-            command = str(self.queue.popleft()).lower().strip()
+            info_dic = self.queue.popleft()
+
+            message_id = info_dic['msg_id']
+            command = str(info_dic['msg_txt']).lower().strip()
+
             if command == "end":
                 self.run = False
+                self.mark_as_read(message_id)
                 self.send_text_message('Shutting Down')
                 return
             else:
                 print(command)
+                self.mark_as_read(message_id)
 
     def send_text_message(self, message_text):
         message = MIMEText(message_text)
-        message['to'] = os.environ['SEND_TO_EMAIL']
+        message['to'] = os.environ['PHONE_NUMBER_EMAIL']
         message['from'] = os.environ['GMAIL_PI_EMAIL']
         raw = base64.urlsafe_b64encode(message.as_bytes())
         raw = raw.decode()
@@ -150,15 +163,26 @@ class EmailMonitor:
     def run(self):
         self.get_credentials()
         self.get_service()
-
         #Check if the service was correctly set up
         if not self.service:
             print("Unable to correctly start service")
-            os.exit(1)
+            os._exit(1)
         self.check_mail()
 
+    def send_unknown_error_alert(self):
+        self.send_text_message("Unknown error occured")
 
+    def send_final_shutdown_text(self):
+        self.send_text_message("Program has concluded successfully")
 
+    def mark_as_read(self, msg_id):
+        payload = {'removeLabelIds': ['UNREAD'], 'addLabelIds': []}
+        try:
+            message = (self.service.users()
+                       .messages().modify(userId='me', id=msg_id,
+                                          body=payload).execute())
+        except errors.HttpError as error:
+            print('An error occurred: %s' % error)
 
 def main():
     """
